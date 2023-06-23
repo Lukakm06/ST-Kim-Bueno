@@ -12,16 +12,17 @@
 #include <Wire.h>
 
 //WiFi
-//const char* ssid = "ORT-IoT";
-// const char* password = "OrtIOTnew22$2";
-const char* ssid = "Fibertel WiFi247 2.4GHz";
-const char* password = "0042411200";
+const char* ssid = "ORT-IoT";
+const char* password = "OrtIOTnew22$2";
+//const char* ssid = "Fibertel WiFi247 2.4GHz";
+//const char* password = "0042411200";
 WiFiClientSecure client;
 
 //Bot Telegram
 #define BOTtoken "6141959127:AAGI9q7fKhbCldpHnKjGeh3AVjKf95gI9rQ"
 #define CHAT_ID "5869871087"
 UniversalTelegramBot bot(BOTtoken, client);
+int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
 
 //Máquina de Estados
 int sM;
@@ -56,13 +57,15 @@ float umbral = 28;
 String botTemp;
 
 //Tiempo
-unsigned long lastDHT = 0;
-unsigned long lastPressed = 0;
+unsigned long lastDHT;
+unsigned long lastPressed;
 unsigned long lastTimeBotRan;
+unsigned long lastDisplay;
 
 int delayDHT = 500;
 int delayPressed = 5000;
 int botRequestDelay = 1000;
+int delayDisplay = 500;
 
 void setup() {
     
@@ -104,45 +107,50 @@ void loop() {
     temperature = dht.readTemperature();
     readBtn1 = digitalRead(BTN_PIN);
     readBtn2 = digitalRead(BTN_PIN2);
+    
 
     stateMachine();
 
+    if (millis() > lastTimeBotRan + botRequestDelay) {
+
     int numNewMessages = bot.getUpdates(bot.last_message_received + 1);
 
-    while(numNewMessages) {
-      Serial.println("Bot en línea");
-      handleNewMessages(numNewMessages);
+    if (numNewMessages) {
+      Serial.println("Veo los msj nuevos");
+      //handleNewMessages(numNewMessages);
       numNewMessages = bot.getUpdates(bot.last_message_received + 1);
     }
+    lastTimeBotRan = millis();
+  }
 }
+
 
 
 
 void stateMachine(){
     switch(sM){
         case SCR1:
-        
-            if(millis() >= lastDHT + delayDHT){
-                lastDHT = millis();
-                temperature = dht.readTemperature();
+        {
+            if(millis() >= lastDisplay + delayDisplay){
+                display.clearDisplay();
+                display.setCursor(1,1);
+                display.print("T = ");
+                display.print(temperature);
+                display.print(" °C");
+                display.setCursor(1,10);
+                display.print("T.U = ");
+                display.print(umbral);
+                display.print("°C");
+                display.display();
             }
-            
-            display.setCursor(0,0);
-            display.print("T = ");
-            display.print(temperature);
-            display.print(" °C");
-            display.setCursor(1,0);
-            display.print("T.U = ");
-            display.print(umbral);
-            display.print("°C");
-            display.display();
+
             
             Serial.println("Pantalla 1");
             
             if(readBtn1 == LOW && readBtn2 == HIGH){
                 sM = BTNP1;
             }
-            
+        }   
         break;
         
         case BTNP1:
@@ -188,13 +196,13 @@ void stateMachine(){
         break;
         
         case SCR2:
-        
+        {
             if(readBtn1 == LOW && readBtn2 == LOW){
                 sM = WAIT;
             }
             
             Serial.println("Pantalla 2");
-            
+        }   
         break;
         
         case WAIT:
@@ -214,32 +222,27 @@ void handleNewMessages(int numNewMessages) {
   Serial.println("Mensaje nuevo");
   Serial.println(String(numNewMessages));
 
-  for (int i=0; i<numNewMessages; i++) {
+  for (int i = 0; i < numNewMessages; i++) {
     // inicio de verificacion
     String chat_id = String(bot.messages[i].chat_id);
-    
+    if (chat_id != CHAT_ID) {  ////si el id no corresponde da error . en caso de que no se quiera comprobar el id se debe sacar esta parte
+      bot.sendMessage(chat_id, "Unauthorized user", "");
+    }
     ///fin de verificacion
 
-    // imprime el msj recibido 
+    // imprime el msj recibido
     String text = bot.messages[i].text;
     Serial.println(text);
 
     String from_name = bot.messages[i].from_name;
 
-    if (text == "/temp") {  
-      
-      temperature = dht.readTemperature();
-      botTemp = temperature;
-      Serial.println("Hacen " + botTemp);
-      bot.sendMessage(chat_id, "Temperature is: " + botTemp, " °C");
-
-     
+    if (text == "/temp") {
+      bot.sendMessage(chat_id, (String) temperature, "");
     }
-      
-      if(temperature >= umbral){
 
-    bot.sendMessage(chat_id, "Hace calor");
+    if (text == "/umbral") {
+      bot.sendMessage(chat_id, (String) umbral, "");
 
-  }
+    }
   }
 }
