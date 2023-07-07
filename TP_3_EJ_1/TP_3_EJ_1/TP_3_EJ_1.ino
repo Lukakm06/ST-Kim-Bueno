@@ -133,11 +133,11 @@ void stateMachine(){
         {
             if(millis() >= lastDisplay + delayDisplay){
                 display.clearDisplay();
-                display.setCursor(1,1);
+                display.setCursor(0,0);
                 display.print("T = ");
                 display.print(temperature);
                 display.print(" °C");
-                display.setCursor(1,10);
+                display.setCursor(1,0);
                 display.print("T.U = ");
                 display.print(umbral);
                 display.print("°C");

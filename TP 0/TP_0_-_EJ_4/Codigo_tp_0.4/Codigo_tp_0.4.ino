@@ -1,180 +1,147 @@
-#include <Adafruit_Sensor.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
-#include <Adafruit_I2CDevice.h>
 #include <DHT.h>
 
-#define BTN_PIN 11
-#define BTN_PIN2 12
-bool readBtn;
-bool readBtn2;
-bool doubleBtnSt;
-bool btnState;
-bool btnState2;
+//Botones
+#define BTN_PIN 34
+#define BTN_PIN2 35
 
+//Pantalla
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
 #define OLED_ADDR 0x3C
 #define OLED_SDA 21
 #define OLED_SCL 22
 #define OLED_RST 16
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-int sM;
-#define INICIAL 0
-#define CHOOSE 1
-#define STILL 2
-#define MOD 3
-#define WAIT 4
-int state = 1;
-int umbral = 28;
+//Máquina de Estados
+int sM = 0;
+#define STILL 0
+#define MOD 1
+#define WAIT 2
+#define WAIT2 3
+#define ADD 4
+#define SUB 5
 
+
+//DHT
 #define DHTPIN 23
 #define DHTTYPE DHT11
 float temperature;
+int umbral = 28;
+DHT dht(DHTPIN, DHTTYPE);
 
+//LED
 #define RELAY_PIN 18
 
-int ms;
+//Delay
+int delayDisplay = 500;
+int lastDisplay;
 
 void setup() {
 
-  Adafruit_SSD1306 display(OLED_RST);
-  DHT dht(DHTPIN, DHTTYPE);
-  
-  pinMode(BTN_PIN,INPUT_PULLUP);
-  pinMode(BTN_PIN2,INPUT_PULLUP);
+  pinMode(BTN_PIN, INPUT_PULLUP);
+  pinMode(BTN_PIN2, INPUT_PULLUP);
   pinMode(RELAY_PIN, OUTPUT);
-  
-  display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR);
+
+  Serial.begin(9600);
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  delay(2000);
   display.clearDisplay();
+
+  display.setTextSize(1);
   display.setTextColor(WHITE);
-  display.setTextSize(2);
-  
+
+
   dht.begin();
-  
+
 }
 
 void loop() {
-  
-  timer();
-  stateMachine();
-}
-
-void stateMachine(){
-  switch(sM){
-    case INICIAL:
-    {
-      
-      delay(2000);
-      temperature = dht.readTemperature();
-
-      readBtn = digitalRead(BTN_PIN);
-      readBtn2 = digitalRead(BTN_PIN2);
-      
-      if(ms >= 500){
-        
-        display.clearDisplay();
-        display.display();
-        ms = 0;
-        
-      }
-      
-      sM = CHOOSE; 
-
-    }
-    break;
-
-    case CHOOSE:
-
+    temperature = dht.readTemperature();
     
-      
-      if(readBtn == LOW && readBtn2 == LOW && doubleBtnSt == 1){
-        
-        state++;
-        
-        if (state >= 3){
-          state = 1;
-          
-        }
-        
-        doubleBtnSt = 0;
-      }
-      
-      sM = WAIT;
-      
-    break;
+  switch (sM) {
     
     case STILL:
-    
-      display.setCursor(0, 0);
-      display.print("Temp: ");
-      display.print(temperature);
-      display.print(" C");
-      display.setCursor(1, 0);
-      display.print("Temp U: 28°C");
+    Serial.println("STILL");
+    if (millis() >= lastDisplay + delayDisplay || lastDisplay == 0) {
+        lastDisplay = millis();
 
-      sM = INICIAL;
-      
+        Serial.println("Impreso");
+        
+        display.clearDisplay();
+        display.setCursor(0, 16);
+        display.println("Temp: ");
+        display.println(temperature);
+        display.println("Temp U: ");
+        display.println(umbral);
+        display.display();
+    }
+     if(digitalRead(BTN_PIN) == LOW && digitalRead(BTN_PIN2) == LOW){
+        sM = WAIT;
+      }
     break;
-    
+
+
     case MOD:
-    
-      display.setCursor(0, 0);
-      display.print("Temp: ");
-      display.print(temperature);
-      display.print(" C");
-      display.setCursor(1, 0);
-      display.print("Temp U: ");
-      display.print(umbral);
-      display.print(" C");
+      if (millis() <= lastDisplay + delayDisplay) {
+        lastDisplay = millis();
 
-      if(readBtn == LOW && btnState == 1){
+        Serial.println("MOD");
         
-        umbral--;
-        btnState == 0;
-        
+        display.clearDisplay();
+        display.setCursor(0, 16);
+        display.println("Temp U: ");
+        display.println(umbral);
+        display.display();
+      }
+
+      if(digitalRead(BTN_PIN) == LOW && digitalRead(BTN_PIN2) == HIGH){
+        sM = ADD;
+      }
+
+      if(digitalRead(BTN_PIN) == HIGH && digitalRead(BTN_PIN2) == LOW){
+        sM = SUB;
       }
       
-      if(readBtn2 == LOW && btnState2 == 1){
-        
-        umbral++;
-        btnState2 == 0;
-        
+      if(digitalRead(BTN_PIN) == LOW && digitalRead(BTN_PIN2) == LOW){
+        sM = WAIT2;
       }
-      
-      sM = WAIT;
-      
     break;
 
+      
     case WAIT:
-    sM = INICIAL;
-    
-      if(readBtn == HIGH && readBtn2 == HIGH && doubleBtnSt == 0){
-        
-        doubleBtnSt == 1;
-        
-        if(state == 1){
-          sM = STILL;
-        }else{
-          sM = MOD;
-        }  
+    Serial.println("WAIT");
+      if(digitalRead(BTN_PIN) == HIGH && digitalRead(BTN_PIN2) == HIGH){
+        sM = MOD;
       }
-      
-      if(readBtn == HIGH && readBtn2 == HIGH && btnState == 0){
-        
-        btnState == 1;
-        
-      }
-      
-      if(readBtn == HIGH && readBtn2 == HIGH && btnState2 == 0){
-        
-        btnState2 == 1;
+    break;
 
+    case WAIT2:
+    Serial.println("WAIT2");
+      if(digitalRead(BTN_PIN) == HIGH && digitalRead(BTN_PIN2) == HIGH){
+        sM = STILL;
       }
-      
+    break;
+
+
+    case ADD:
+      if(digitalRead(BTN_PIN) == HIGH && digitalRead(BTN_PIN2) == HIGH){
+        umbral++;
+        sM = MOD;
+      }
+    break;
+
+
+    case SUB:
+      if(digitalRead(BTN_PIN) == HIGH && digitalRead(BTN_PIN2) == HIGH){
+        umbral--;
+        sM = MOD;
+      }
     break;
   }
-}
-
-void timer(){
-  ms++;
+  
 }
